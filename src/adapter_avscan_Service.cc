@@ -24,6 +24,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <cerrno>
 #include <climits>
@@ -78,6 +79,7 @@ Adapter::SkipList::~SkipList()
 	while (entry) {
 	    struct skipListEntry *next = entry->next;
 	    regfree(entry->preg);
+            delete(entry->preg);
 	    delete(entry);
 	    entry = next;
 	}
@@ -129,6 +131,34 @@ bool Adapter::SkipList::match(const char *expr)
     return false;
 }
 
+Adapter::Magic::Magic(const std::string &magicdb)
+{
+/* Some old versions of libmagic don't support MAGIC_MIME_TYPE.
+ * But hey, if we have squid-3.1 we should probably also have an
+ * actual version of libmagic. Anyhow, use MAGIC_MIME instead.
+ */
+#ifndef MAGIC_MIME_TYPE
+    if (!(mcookie = magic_open(MAGIC_MIME)))
+#else
+    if (!(mcookie = magic_open(MAGIC_MIME_TYPE)))
+#endif
+    {
+        Logger(ilCritical|flApplication) << "can't initialize magic library, skiplists won't work!";
+    } else if (-1 == magic_load(mcookie, magicdb.c_str())) {
+        Logger(ilCritical|flApplication) << "can't load magic database, skiplists won't work!";
+        magic_close(mcookie);
+        mcookie = NULL;
+    }
+}
+
+Adapter::Magic::~Magic()
+{
+    if (mcookie) {
+        magic_close(mcookie);
+        mcookie = nullptr;
+    }
+}
+
 Adapter::AdditionalOptions::AdditionalOptions(std::string path)
 {
     constexpr char key_value_translate[] = "^([[:alpha:]]+)[ \t]*(:)[ \t]*([[:print:]]+)";
@@ -170,15 +200,15 @@ Adapter::AdditionalOptions::getTranslateKeys()
 }
 
 Adapter::Service::Service() :
-        skipList(NULL),
-        blockList(NULL),
+        skipList(nullptr),
+        blockList(nullptr),
         trickletime(30),
         readtimeout(TIMEOUT * 2),
         writetimeout(TIMEOUT),
         tricklesize(10),
         maxscansize(0),
-        mcookie(NULL),
-        options(NULL)
+        magic(nullptr),
+        options(nullptr)
 {}
 
 std::string Adapter::Service::uri() const
@@ -319,26 +349,11 @@ void Adapter::Service::start()
     readconfig(configfn);
 
     LOG_DBG("using avdsocket=%s", avdsocket.c_str());
-/* Some old versions of libmagic don't support MAGIC_MIME_TYPE.
- * But hey, if we have squid-3.1 we should probably also have an
- * actual version of libmagic. Anyhow, use MAGIC_MIME instead.
- */
-#ifndef MAGIC_MIME_TYPE
-    if (!(mcookie = magic_open(MAGIC_MIME)))
-#else
-    if (!(mcookie = magic_open(MAGIC_MIME_TYPE)))
-#endif
-    {
-	Logger(ilCritical|flApplication) << "can't initialize magic library, skiplists won't work!";
-    } else if (-1 == magic_load(mcookie, magicdb.c_str())) {
-	Logger(ilCritical|flApplication) << "can't load magic database, skiplists won't work!";
-        magic_close(mcookie);
-        mcookie = NULL;
-    }
-    skipList = new Adapter::SkipList(skiplist);
-    blockList = new Adapter::SkipList(blocklist);
+    this->magic = std::make_unique<Adapter::Magic>(magicdb);
+    this->skipList = std::make_unique<Adapter::SkipList>(skiplist);
+    this->blockList = std::make_unique<Adapter::SkipList>(blocklist);
     if (optionlist.length() > 0) {
-        options = new Adapter::AdditionalOptions(optionlist);
+        this->options = std::make_unique<Adapter::AdditionalOptions>(optionlist);
     }
     Logger(flApplication) << ADAPTERNAME << " started";
 }
@@ -346,21 +361,6 @@ void Adapter::Service::start()
 void Adapter::Service::stop()
 {
     FUNCENTER();
-
-    if (mcookie)
-        magic_close(mcookie);
-    if (skipList) {
-        delete(skipList);
-        skipList = NULL;
-    }
-    if (blockList) {
-        delete(blockList);
-        blockList = NULL;
-    }
-    if (options) {
-        delete(options);
-        options = NULL;
-    }
 
     libecap::adapter::Service::stop();
 }
