@@ -66,23 +66,23 @@ Adapter::SkipList::SkipList(std::string aPath)
         }
         in.close();
     } else {
-	Logger(ilCritical|flApplication) << "can't open " << aPath;
+        Logger(ilCritical|flApplication) << "can't open " << aPath;
     }
 }
 
 Adapter::SkipList::~SkipList()
 {
     if (NULL == entries) {
-	/* nothing to free */
+        /* nothing to free */
     } else {
-	struct skipListEntry *entry = entries;
-	while (entry) {
-	    struct skipListEntry *next = entry->next;
-	    regfree(entry->preg);
+        struct skipListEntry *entry = entries;
+        while (entry) {
+            struct skipListEntry *next = entry->next;
+            regfree(entry->preg);
             delete(entry->preg);
-	    delete(entry);
-	    entry = next;
-	}
+            delete(entry);
+            entry = next;
+        }
     }
 }
 
@@ -98,7 +98,7 @@ void Adapter::SkipList::add(std::string s)
     } else if (!(regex = new regex_t)) {
         /* oom */
     } else if (0 != regcomp(regex, s.c_str(), REG_EXTENDED | REG_NOSUB | REG_ICASE)) {
-	Logger(ilCritical|flApplication) << "invalid regular expression @ " << linenumber;
+        Logger(ilCritical|flApplication) << "invalid regular expression @ " << linenumber;
     } else if (!(entry = new (struct skipListEntry))) {
         /* oom */
     } else {
@@ -235,23 +235,23 @@ static libecap::size_type parseunit(std::string s, std::string name)
     libecap::size_type size, calculated;
 
     if (ULONG_MAX == (size = strtoul(s.c_str(), &unit, 10))) {
-	Logger(ilCritical|flApplication) << name << " value '" << s << "' to large, using " << size << " instead";
-	return size;
+        Logger(ilCritical|flApplication) << name << " value '" << s << "' to large, using " << size << " instead";
+        return size;
     }
 
     // skip spaces if any
     while (' ' == *unit) unit++;
     if (0 == strncmp(unit, "KB", 2))
-	calculated = size * 1024;
+        calculated = size * 1024;
     else if (0 == strncmp(unit, "MB", 2))
-	calculated = size * 1024 * 1024;
+        calculated = size * 1024 * 1024;
     else
-	calculated = size;
+        calculated = size;
 
     // check for integer overflow
     if (calculated < size) {
-	Logger(ilCritical|flApplication) << "integer overflow, ignoring unit, using " << size << " instead";
-	calculated = size;
+        Logger(ilCritical|flApplication) << "integer overflow, ignoring unit, using " << size << " instead";
+        calculated = size;
     }
     return calculated;
 }
@@ -310,7 +310,7 @@ void Adapter::Service::readconfig(std::string aPath)
         regfree(&re);
         in.close();
     } else {
-	Logger(ilCritical|flApplication) << "can't open " << aPath;
+        Logger(ilCritical|flApplication) << "can't open " << aPath;
     }
 }
 
